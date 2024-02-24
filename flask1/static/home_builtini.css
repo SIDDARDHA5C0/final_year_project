@@ -369,6 +369,15 @@
     flex-direction: column;
 }
 
+#video-display img {
+    max-width: 100%;
+    /* Ensure the image does not exceed the container's width */
+    max-height: 100%;
+    /* Ensure the image does not exceed the container's height */
+    object-fit: contain;
+    /* Maintain the aspect ratio of the image while fitting within the container */
+}
+
 .home-container17 {
     width: 156px;
     height: 372px;
