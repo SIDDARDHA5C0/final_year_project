@@ -1,0 +1,7 @@
+flask1/bin/
+flask1/Include/
+flask1/Lib/
+flask1/Scripts
+flask1/__pycache__
+flask1/share
+
