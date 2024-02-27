@@ -26,9 +26,7 @@ max_cosine_distance = 0.4
 nn_budget = None
 counter_A = 0
 
-# Initialize the video capture and the video writer objects
-#video_cap = cv2.VideoCapture("1.mp4")
-#writer = create_video_writer(video_cap, "output.mp4")
+
 
 # Initialize the YOLOv8 model using the default weights
 model = YOLO("yolov8s.pt")
@@ -91,7 +89,7 @@ def video_feed():
         startY = data['startY']
         endX = data['endX']
         endY = data['endY']
-        print(f"{startX = },{startY = }, {endX = },{endY = }")
+        #print(f"{startX = },{startY = }, {endX = },{endY = }")
         
 
             # Save the video file temporarily
@@ -100,19 +98,13 @@ def video_feed():
 
         #ml code
         conf_threshold = 0.5
-        points = [deque(maxlen=32) for _ in range(1000)] # list of deques to store the points
+        points = [deque(maxlen=32) for _ in range(100)] # list of deques to store the points
+        done=[]
         counter_A = 0
         counter_B = 0
         counter_C = 0
         start_line_A = (int(startX),int(startY))
         end_line_A = (int(endX),int(endY))
-        condi,slope,consta=0,0,0
-        if abs(start_line_A[0]-end_line_A[0])<1:
-            condi=True
-        else:
-            condi=False
-            slope=((end_line_A[1]-start_line_A[1])/(end_line_A[0]-start_line_A[0] ))
-            consta=start_line_A[1]-(slope*start_line_A[0] )
                 # Open the video file using cv2.VideoCapture
         video_cap = cv2.VideoCapture(video_filename)
         writer = create_video_writer(video_cap, "static/output.mp4")
@@ -120,25 +112,26 @@ def video_feed():
             # starter time to computer the fps
             start = datetime.datetime.now()
             ret, frame = video_cap.read()
-            overlay = frame.copy()
+            
             
             # draw the lines
-            cv2.line(frame, start_line_A, end_line_A, (0, 255, 0), 12)
-            
-            frame = cv2.addWeighted(overlay, 0.5, frame, 0.5, 0)
+           
 
             # if there is no frame, we have reached the end of the video
-            if not ret:
+            if not ret or frame is None:
                 print("End of the video file...")
                 break
-
+            
             ############################################################
             ### Detect the objects in the frame using the YOLO model ###
             ############################################################
 
             # run the YOLO model on the frame
             results = model(frame)
-
+            overlay = frame.copy()
+            cv2.line(frame, start_line_A, end_line_A, (0, 0, 0), 12)
+            
+            frame = cv2.addWeighted(overlay, 0.5, frame, 0.5, 0)
             # loop over the results
             for result in results:
                 # initialize the list of bounding boxes, confidences, and class IDs
@@ -232,7 +225,7 @@ def video_feed():
                 # get the last point from the points list and draw it
                 last_point_x = points[track_id][0][0]
                 last_point_y = points[track_id][0][1]
-                cv2.circle(frame, (int(last_point_x), int(last_point_y)), 4, (255, 0, 255), -1)    
+                #cv2.circle(frame, (int(last_point_x), int(last_point_y)), 4, (255, 0, 255), -1)    
                 #print(f"{center_x = },{center_y = },{last_point_x = },{last_point_y = }")
                 # if the y coordinate of the center point is below the line, and the x coordinate is 
                 # between the start and end points of the line, and the the last point is above the line,
@@ -240,23 +233,16 @@ def video_feed():
                 current_point_side= (end_line_A[1]-start_line_A[1])*(center_x-start_line_A[0])-(end_line_A[0]-start_line_A[0])*(center_y-start_line_A[1])
                 last_point_side=(end_line_A[1]-start_line_A[1])*(last_point_x -start_line_A[0])-(end_line_A[0]-start_line_A[0])*(last_point_y -start_line_A[1])
                 #print(f"{current_point_side = }, {last_point_side = }")
-                if current_point_side*last_point_side<0 and start_line_A[0]<center_x <end_line_A[0] :
+                if current_point_side*last_point_side<0 and start_line_A[0]<center_x <end_line_A[0] and track_id not in done :
                     counter_A += 1
                     #print(counter_A)
+                    done.append(track_id)
                     points[track_id].clear()
-                """if condi:
-                    if abs(center_x-start_line_A[0])<=1:
-                        counter_A += 1
-                        print(counter_A)
-                        points[track_id].clear()
-                else:
-
-                    guess_cy=(slope*center_x )+consta
-                    if abs(guess_cy-center_y)<=1:
-                    #if center_y > start_line_A[1] and start_line_A[0] < center_x < end_line_A[0] and last_point_y < start_line_A[1]:
-                        counter_A += 1
-                        print(counter_A)
-                        points[track_id].clear() """
+                """if center_y > start_line_A[1] and start_line_A[0] < center_x < end_line_A[0] and last_point_y < start_line_A[1] and track_id not in done:
+                    counter_A += 1
+                    done.append(track_id)
+                    #print(counter_A)
+                    points[track_id].clear()  """
         
                     
             ############################################################
@@ -294,6 +280,9 @@ def video_feed():
         video_cap.release()  # Release the video capture object
         points.clear()
         writer.release()
+        tracker._next_id = 1
+        tracker.tracks.clear()
+        done.clear()
 
             # Return the generator as an HTTP response
             
