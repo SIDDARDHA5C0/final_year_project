@@ -19,8 +19,8 @@
                 <h1>Upload your Video</h1>
             </div>
             <div class="home-container07">
-                <form class="home-form" id="uploadForm">
-                    <input type="file" accept="video" id="videoInput" name="video" placeholder="Enter your video here"
+                <form class="home-form" id="uploadForm" enctype="multipart/form-data">
+                    <input type="file" accept="video/*" id="videoInput" name="video" placeholder="Enter your video here"
                         class="home-input input" />
                     <div class="home-container08">
                         <button type="reset" class="home-button button">
@@ -38,8 +38,13 @@
         <div class="home-container10">
             <div class="home-container11">
                 <h1 class="home-text06">Draw the line</h1>
+                <button onclick="eraseLines()"><span>Erase</span></button>
+                <button onclick="sendCoordinatesToFlask()"><span>Do</span></button>
             </div>
-            <div class="home-container12"></div>
+
+            <div class="home-container12" id="canvasContainer">
+                <canvas id="frameCanvas"></canvas>
+            </div>
         </div>
     </div>
     <div class="home-container13">
@@ -52,7 +57,10 @@
             </div>
 
         </div>
-        <div class="home-container17"></div>
+        <div class="home-container17">
+            <h2>Total Count</h2>
+            <h1 id="counterValue">0</h1>
+        </div>
         <div class="home-container18">
             <div class="home-container19">
                 <h1>Output Video</h1>

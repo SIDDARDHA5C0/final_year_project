@@ -24,7 +24,7 @@ import base64
 
 max_cosine_distance = 0.4
 nn_budget = None
-
+counter_A = 0
 
 # Initialize the video capture and the video writer objects
 #video_cap = cv2.VideoCapture("1.mp4")
@@ -58,14 +58,45 @@ def hello():
     return render_template("home_builtin.html")
 from flask import Response
 
+@app.route('/upload_video', methods=['POST'])
+def upload_video():
+    video_file = request.files["video"]
+
+            # Save the video file temporarily
+    video_filename = "static/temp_video.mp4"
+    video_file.save(video_filename)
+            
+            # Open the video file using cv2.VideoCapture
+    cap = cv2.VideoCapture(video_filename)
+    ret,frame=cap.read()
+    cap.release()
+    image_path="static/fframe.jpg"
+    cv2.imwrite(image_path,frame)
+    # Get frame dimensions
+    frame_height, frame_width, _ = frame.shape
+    print(f"{frame_height} and {frame_width}")
+    # Send the extracted frame and its dimensions back to client
+    return jsonify({
+        'frame_path': image_path,
+        'frame_height': frame_height,
+        'frame_width': frame_width
+    })
+
 @app.route('/video_feed', methods=['POST'])
 def video_feed():
+    global counter_A
     try:
-        video_file = request.files["video"]
+        data = request.json
+        startX = data['startX']
+        startY = data['startY']
+        endX = data['endX']
+        endY = data['endY']
+        print(f"{startX = },{startY = }, {endX = },{endY = }")
+        
 
             # Save the video file temporarily
         video_filename = "static/temp_video.mp4"
-        video_file.save(video_filename)
+        
 
         #ml code
         conf_threshold = 0.5
@@ -73,12 +104,15 @@ def video_feed():
         counter_A = 0
         counter_B = 0
         counter_C = 0
-        start_line_A = (0, 480)
-        end_line_A = (480, 480)
-        start_line_B = (525, 480)
-        end_line_B = (745, 480)
-        start_line_C = (895, 480)
-        end_line_C = (1165, 480)
+        start_line_A = (int(startX),int(startY))
+        end_line_A = (int(endX),int(endY))
+        condi,slope,consta=0,0,0
+        if abs(start_line_A[0]-end_line_A[0])<1:
+            condi=True
+        else:
+            condi=False
+            slope=((end_line_A[1]-start_line_A[1])/(end_line_A[0]-start_line_A[0] ))
+            consta=start_line_A[1]-(slope*start_line_A[0] )
                 # Open the video file using cv2.VideoCapture
         video_cap = cv2.VideoCapture(video_filename)
         writer = create_video_writer(video_cap, "static/output.mp4")
@@ -90,8 +124,6 @@ def video_feed():
             
             # draw the lines
             cv2.line(frame, start_line_A, end_line_A, (0, 255, 0), 12)
-            cv2.line(frame, start_line_B, end_line_B, (255, 0, 0), 12)
-            cv2.line(frame, start_line_C, end_line_C, (0, 0, 255), 12)
             
             frame = cv2.addWeighted(overlay, 0.5, frame, 0.5, 0)
 
@@ -125,7 +157,7 @@ def video_feed():
 
                     # filter out weak predictions by ensuring the confidence is
                     # greater than the minimum confidence
-                    if confidence > conf_threshold:
+                    if confidence > conf_threshold and class_id==2 :
                         bboxes.append([x, y, w, h])
                         confidences.append(confidence)
                         class_ids.append(class_id)
@@ -201,19 +233,31 @@ def video_feed():
                 last_point_x = points[track_id][0][0]
                 last_point_y = points[track_id][0][1]
                 cv2.circle(frame, (int(last_point_x), int(last_point_y)), 4, (255, 0, 255), -1)    
-
+                #print(f"{center_x = },{center_y = },{last_point_x = },{last_point_y = }")
                 # if the y coordinate of the center point is below the line, and the x coordinate is 
                 # between the start and end points of the line, and the the last point is above the line,
                 # increment the total number of cars crossing the line and remove the center points from the list
-                if center_y > start_line_A[1] and start_line_A[0] < center_x < end_line_A[0] and last_point_y < start_line_A[1]:
+                current_point_side= (end_line_A[1]-start_line_A[1])*(center_x-start_line_A[0])-(end_line_A[0]-start_line_A[0])*(center_y-start_line_A[1])
+                last_point_side=(end_line_A[1]-start_line_A[1])*(last_point_x -start_line_A[0])-(end_line_A[0]-start_line_A[0])*(last_point_y -start_line_A[1])
+                #print(f"{current_point_side = }, {last_point_side = }")
+                if current_point_side*last_point_side<0 and start_line_A[0]<center_x <end_line_A[0] :
                     counter_A += 1
+                    #print(counter_A)
                     points[track_id].clear()
-                elif center_y > start_line_B[1] and start_line_B[0] < center_x < end_line_B[0] and last_point_y < start_line_A[1]:
-                    counter_B += 1
-                    points[track_id].clear()
-                elif center_y > start_line_C[1] and start_line_C[0] < center_x < end_line_C[0] and last_point_y < start_line_A[1]:
-                    counter_C += 1
-                    points[track_id].clear()
+                """if condi:
+                    if abs(center_x-start_line_A[0])<=1:
+                        counter_A += 1
+                        print(counter_A)
+                        points[track_id].clear()
+                else:
+
+                    guess_cy=(slope*center_x )+consta
+                    if abs(guess_cy-center_y)<=1:
+                    #if center_y > start_line_A[1] and start_line_A[0] < center_x < end_line_A[0] and last_point_y < start_line_A[1]:
+                        counter_A += 1
+                        print(counter_A)
+                        points[track_id].clear() """
+        
                     
             ############################################################
             ### Some post-processing to display the results          ###
@@ -227,12 +271,12 @@ def video_feed():
                         cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 8)
             
             # draw the total number of vehicles passing the lines
-            cv2.putText(frame, "A", (10, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-            cv2.putText(frame, "B", (530, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-            cv2.putText(frame, "C", (910, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-            cv2.putText(frame, f"{counter_A}", (270, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-            cv2.putText(frame, f"{counter_B}", (620, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-            cv2.putText(frame, f"{counter_C}", (1040, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            cv2.putText(frame, "A", start_line_A, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            #cv2.putText(frame, "B", (530, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            #cv2.putText(frame, "C", (910, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            cv2.putText(frame, f"{counter_A}", ((start_line_A[0]+end_line_A[0])//2, (start_line_A[1]+end_line_A[1])//2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            #cv2.putText(frame, f"{counter_B}", (620, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            #cv2.putText(frame, f"{counter_C}", (1040, 483), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
             
             writer.write(frame)
 
@@ -248,7 +292,7 @@ def video_feed():
         return "error occured"
     finally:
         video_cap.release()  # Release the video capture object
-        os.remove(video_filename)  # Delete the temporary file
+        points.clear()
         writer.release()
 
             # Return the generator as an HTTP response
@@ -259,15 +303,21 @@ def video_feed():
 
 @app.route('/get_video_url')
 def get_video_url():
-    # Assuming your video file is named 'my_video.mp4' in the static folder
     video_path = "static/output.mp4"
-    if not os.path.exists(video_path):
-        print("not found")
+    if os.path.exists(video_path):
+        video_url = url_for('static', filename='output.mp4')
+        return jsonify({'video_url': video_url})
+    else:
         return jsonify({'video_url': "no"})
-    video_url = url_for('static', filename='output.mp4')
-    print(video_url)
-    return jsonify({'video_url': "output.mp4"})
+
+
+# Route to get the updated value of counter_A
+@app.route('/counter_A')
+def get_counter_A():
+    global counter_A
+    return jsonify({'counter_A': counter_A})
 
 print("hello")
 if __name__=='__main__':
     socketio.run(app, debug=True)
+    #$env:FLASK_DEBUG = "1" for debug
